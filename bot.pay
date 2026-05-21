@@ -1,0 +1,166 @@
+import os
+import telebot
+import yt_dlp
+
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+BOT_TOKEN = "8935065883:AAGvYcaXUVeaXwDM03RjeMJj1d_Vtmx9AdQ"
+
+bot = telebot.TeleBot(BOT_TOKEN)
+
+DOWNLOAD_FOLDER = "downloads"
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+
+# ================= START MENU =================
+
+@bot.message_handler(commands=['start'])
+def start(message):
+
+    markup = InlineKeyboardMarkup(row_width=2)
+
+    yt = InlineKeyboardButton("📺 YouTube", callback_data="youtube")
+    tt = InlineKeyboardButton("🎵 TikTok", callback_data="tiktok")
+    fb = InlineKeyboardButton("📘 Facebook", callback_data="facebook")
+    ig = InlineKeyboardButton("📸 Instagram", callback_data="instagram")
+    pin = InlineKeyboardButton("📌 Pinterest", callback_data="pinterest")
+
+    markup.add(yt, tt, fb, ig, pin)
+
+    bot.send_message(
+        message.chat.id,
+        "🔥 আপনি কি ভিডিও ডাউনলোড দিবেন সেটি নির্বাচন করুন 👇",
+        reply_markup=markup
+    )
+
+
+# ================= BUTTON CLICK =================
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+
+    if call.data == "youtube":
+        bot.send_message(
+            call.message.chat.id,
+            "📺 YouTube ভিডিও লিংক পাঠান"
+        )
+
+    elif call.data == "tiktok":
+        bot.send_message(
+            call.message.chat.id,
+            "🎵 TikTok ভিডিও লিংক পাঠান"
+        )
+
+    elif call.data == "facebook":
+        bot.send_message(
+            call.message.chat.id,
+            "📘 Facebook ভিডিও লিংক পাঠান"
+        )
+
+    elif call.data == "instagram":
+        bot.send_message(
+            call.message.chat.id,
+            "📸 Instagram Reel/Post লিংক পাঠান"
+        )
+
+    elif call.data == "pinterest":
+        bot.send_message(
+            call.message.chat.id,
+            "📌 Pinterest ভিডিও লিংক পাঠান"
+        )
+
+
+# ================= DOWNLOAD VIDEO =================
+
+@bot.message_handler(func=lambda message: message.text and message.text.startswith("http"))
+def download_video(message):
+
+    url = message.text
+
+    msg = bot.reply_to(
+        message,
+        "📥 ভিডিও ডাউনলোড হচ্ছে...\n⏳ একটু অপেক্ষা করুন"
+    )
+
+    try:
+
+        ydl_opts = {
+
+            # BEST FORMAT FIX
+            'format': 'bv*+ba/b/best',
+
+            # SAVE PATH
+            'outtmpl': f'{DOWNLOAD_FOLDER}/%(title).80s.%(ext)s',
+
+            # PLAYLIST OFF
+            'noplaylist': True,
+
+            # QUIET MODE
+            'quiet': True,
+
+            # WARNING OFF
+            'no_warnings': True,
+
+            # MERGE MP4
+            'merge_output_format': 'mp4',
+
+            # COOKIE SUPPORT
+            'nocheckcertificate': True,
+
+            # MOBILE FIX
+            'geo_bypass': True,
+
+            # SPEED
+            'retries': 10,
+
+            # TIKTOK FIX
+            'extractor_retries': 10
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
+            info = ydl.extract_info(url, download=True)
+
+            file_path = ydl.prepare_filename(info)
+
+            # MP4 FIX
+            if not file_path.endswith(".mp4"):
+
+                base = os.path.splitext(file_path)[0]
+
+                mp4_file = base + ".mp4"
+
+                if os.path.exists(mp4_file):
+                    file_path = mp4_file
+
+        # SEND VIDEO
+        with open(file_path, 'rb') as video:
+
+            bot.send_video(
+                chat_id=message.chat.id,
+                video=video,
+                caption="✅ ভিডিও ডাউনলোড সম্পন্ন 🔥"
+            )
+
+        # DELETE FILE
+        os.remove(file_path)
+
+        bot.delete_message(
+            message.chat.id,
+            msg.message_id
+        )
+
+    except Exception as e:
+
+        bot.edit_message_text(
+            f"❌ ভিডিও ডাউনলোড করা যায়নি\n\n{e}",
+            message.chat.id,
+            msg.message_id
+        )
+
+
+# ================= RUN BOT =================
+
+print("🔥 Bot Running...")
+
+bot.infinity_polling(skip_pending=True)
